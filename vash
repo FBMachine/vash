@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+"""
+    Virtual Api SHell - Install and use APIs as if they were local resources.
+                        Bash-like wherever possible.
+
+"""
+
+import traceback
+import commands
+username = commands.getoutput("whoami")
+import platform
+hostname = platform.uname()[1]
+
+from core.resource import Directory, Executable, find_resource
+from core.util import init_readline, Color, BrightColor
+from core.vbuiltins import ls, install, cd
+
+logo = """\
+ __   ___   ___ _  _
+ \ \ / /_\ / __| || |
+  \ V / _ \\\\__ \ __ |
+   \_/_/ \_\___/_||_|
+"""
+
+class EnvironmentState:
+    current_directory = Directory('~')
+    local_autocomplete = []
+    commands = ['ls', 'install', 'cd', 'exit']
+
+state = EnvironmentState()
+
+init_readline(state)
+
+# TODO: this should be in config
+colored_hostname = Color.BOLD + Color.CYAN + hostname + Color.RESET
+colored_username = Color.BOLD + Color.GREEN + username + Color.RESET
+prompt_header = colored_username + '@' + colored_hostname
+
+def get_path_string():
+    """ Generate a human readable path given current directory node.
+    """
+    path_string = state.current_directory.name
+
+    directory = state.current_directory
+    # walk up the chain until we hit the root
+    while directory.parent != None:
+        directory = directory.parent
+        # prepend the parent directory name
+        path_string = directory.name + '/' + path_string
+
+    return path_string
+
+print logo
+while True:
+    command_string = raw_input(prompt_header + ':' + get_path_string() + '$ ')
+
+    args = command_string.split()
+    command = args[0]
+    args = args[1:]
+
+    try:
+        if command == 'ls':
+            ls(state, args[0] if args else [])
+        elif command == 'install':
+            install(state, args[0] if args else [])
+        elif command == 'cd':
+            cd(state, args[0] if args else [])
+        elif command == 'bt':
+            traceback.print_exc()
+        elif command == 'exit':
+            break
+        else:
+            executable = find_resource(state.current_directory, command, Executable)
+            if executable == None:
+                print command + ": command not found"
+            else:
+                result = executable.run()
+                print result
+    except Exception, ex:
+        print Color.BOLD + Color.RED + "Error: " + Color.RESET + str(ex)
